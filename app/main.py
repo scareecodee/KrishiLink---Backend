@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 import os
 
 from app.database import init_db, AsyncSessionLocal
@@ -23,8 +24,7 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS Configuration - Allow both local and production frontends
-# Get allowed origins from environment variable or use default
+# CORS Configuration
 allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
 allowed_origins = [
     "http://localhost:3000",
@@ -32,38 +32,59 @@ allowed_origins = [
     "http://127.0.0.1:5173",
 ]
 
-# Add origins from environment variable (comma-separated)
 if allowed_origins_env:
     env_origins = [origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()]
     allowed_origins.extend(env_origins)
 
-# Also check for VERCEL_URL or specific frontend URL
-vercel_url = os.getenv("VERCEL_URL", "")
-if vercel_url and vercel_url not in allowed_origins:
-    allowed_origins.append(vercel_url)
-
-# Remove duplicates while preserving order
 allowed_origins = list(dict.fromkeys(allowed_origins))
-
-print("Allowed CORS origins:", allowed_origins)  # Debug log
+print("Allowed CORS origins:", allowed_origins)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,  # List of allowed origins
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods (GET, POST, PUT, DELETE, OPTIONS, etc.)
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
     expose_headers=["*"],
-    max_age=600,  # Cache preflight requests for 10 minutes
+    max_age=600,
 )
 
-# Include routers - Note: You might want to add prefixes
+# ============================================
+# IMPORTANT: Include routers with AND without prefix
+# ============================================
+
+# 1. Include with /api prefix (for production)
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(farmer.router, prefix="/api/farmer", tags=["Farmer"])
 app.include_router(buyer.router, prefix="/api/buyer", tags=["Buyer"])
 app.include_router(fpo.router, prefix="/api/fpo", tags=["FPO"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 app.include_router(common.router, prefix="/api/common", tags=["Common"])
+
+# 2. Include WITHOUT prefix (for compatibility with your frontend)
+app.include_router(auth.router, tags=["Authentication (no prefix)"])
+app.include_router(farmer.router, tags=["Farmer (no prefix)"])
+app.include_router(buyer.router, tags=["Buyer (no prefix)"])
+app.include_router(fpo.router, tags=["FPO (no prefix)"])
+app.include_router(admin.router, tags=["Admin (no prefix)"])
+app.include_router(common.router, tags=["Common (no prefix)"])
+
+# ============================================
+# Global OPTIONS handler for CORS preflight
+# ============================================
+@app.options("/{path:path}")
+async def options_handler():
+    """Handle OPTIONS preflight requests for all routes"""
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept, X-Requested-With",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "600",
+        }
+    )
 
 @app.on_event("startup")
 async def on_startup():
