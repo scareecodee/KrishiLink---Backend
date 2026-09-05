@@ -30,6 +30,8 @@ allowed_origins = [
     "http://localhost:3000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://krishi-link-frontend.vercel.app",
+    "https://krishi-link-frontend.vercel.app/login",
 ]
 
 if allowed_origins_env:
@@ -50,19 +52,21 @@ app.add_middleware(
 )
 
 # ============================================
-# IMPORTANT: Include routers with AND without prefix
+# Include routers
 # ============================================
 
-# 1. Include with /api prefix (for production)
-app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+# Auth - Include BOTH the prefix and no-prefix routers
+app.include_router(auth.router)           # /api/auth/*
+app.include_router(auth.no_prefix_router) # /auth/*
+
+# Other routers with /api prefix
 app.include_router(farmer.router, prefix="/api/farmer", tags=["Farmer"])
 app.include_router(buyer.router, prefix="/api/buyer", tags=["Buyer"])
 app.include_router(fpo.router, prefix="/api/fpo", tags=["FPO"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 app.include_router(common.router, prefix="/api/common", tags=["Common"])
 
-# 2. Include WITHOUT prefix (for compatibility with your frontend)
-app.include_router(auth.router, tags=["Authentication (no prefix)"])
+# Also include other routers without prefix if needed
 app.include_router(farmer.router, tags=["Farmer (no prefix)"])
 app.include_router(buyer.router, tags=["Buyer (no prefix)"])
 app.include_router(fpo.router, tags=["FPO (no prefix)"])
@@ -70,7 +74,7 @@ app.include_router(admin.router, tags=["Admin (no prefix)"])
 app.include_router(common.router, tags=["Common (no prefix)"])
 
 # ============================================
-# Global OPTIONS handler for CORS preflight
+# Global OPTIONS handler for CORS preflight (fallback)
 # ============================================
 @app.options("/{path:path}")
 async def options_handler():
